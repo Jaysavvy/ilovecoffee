@@ -18,8 +18,8 @@ findAll(@Query() paginationQuery){
   }
 
 @Get(':id')
-findOne(@Param('id') id: number){
-  return this.coffeesService.findOne('' + id)
+findOneOrFail(@Param('id') id: number){
+  return this.coffeesService.findOneOrFail({id :id})
   }
 
   @Post()
@@ -36,6 +36,6 @@ findOne(@Param('id') id: number){
 
   @Delete(':id')
   remove(@Param('id') id: string){
-    return this.coffeesService.remove(id)
+    return this.coffeesService.remove({id :id})
   }
 }
