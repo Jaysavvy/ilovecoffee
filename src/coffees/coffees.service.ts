@@ -1,11 +1,13 @@
 import { HttpException, Injectable, HttpStatus, NotFoundException, Inject, Options } from '@nestjs/common';
 import {Coffee} from './entities/coffee.entity'
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Any, Connection, DataSource, Repository } from 'typeorm';
 import { CreateCoffeeDto } from './dto/create-coffee.dto/create-coffee.dto';
 import { UpdateCoffeeDto } from './dto/update-coffee.dto/update-coffee.dto';
 import { FlavorEntity } from './entities/flavor.entity/flavor.entity';
+import {PaginationQueryDto} from '../common/dto/pagination-query.dto/pagination-query.dto'
 export {};
+import { Event } from '../events/entites/event.entity/event.entity'
 
 
 
@@ -17,11 +19,16 @@ export class CoffeesService {
         private readonly coffeeRepository: Repository<Coffee>,
         @InjectRepository(FlavorEntity)
         private readonly flavorRepository: Repository<FlavorEntity>,
+        private readonly DataSource : DataSource, 
+
     ){}
 
-    findAll(){
+    findAll(paginationQuery: PaginationQueryDto){
+        const {limit, offset} = paginationQuery;
         return this.coffeeRepository.find({
             relations: ['flavors'],
+            skip: offset,
+            take: limit,
         })
     }
 
@@ -74,6 +81,31 @@ export class CoffeesService {
     const coffee = await this.findOneOrFail(id);
     return this.coffeeRepository.remove(coffee)
        
+    }
+
+
+    async recommendCoffee(coffee: Coffee){
+        const queryRunner = this.DataSource.createQueryRunner();
+
+        await queryRunner.connect()
+        await queryRunner.startTransaction();
+        try {
+            coffee.recommendations++;
+
+            const recommendEvent = new Event();
+            recommendEvent.name = 'recommend_coffee';
+            recommendEvent.type = 'coffee';
+            recommendEvent.payload = {coffeeId: coffee.id};
+
+            await queryRunner.manager.save(coffee);
+            await queryRunner.manager.save(recommendEvent);
+
+            await queryRunner.commitTransaction()
+        } catch(err){
+            await queryRunner.commitTransaction();
+        }finally{
+            await queryRunner.release()
+        }
     }
 
     private async preloadFlavorByName(name: string): Promise<FlavorEntity> {
